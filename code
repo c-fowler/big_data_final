@@ -1,0 +1,47 @@
+import scrapy
+from scrapy.crawler import CrawlerProcess
+import pandas as pd
+import json
+
+class JsonWriterPipeline(object):
+
+    def open_spider(self, spider):
+        self.file = open('pickleballnotpickling.jl', 'w')
+
+    def close_spider(self, spider):
+        self.file.close()
+
+    def process_item(self, item, spider):
+        line = json.dumps(dict(item)) + "\n"
+        self.file.write(line)
+        return item
+        
+        
+class PickleballSpider(scrapy.Spider):
+    name = "world_pickleball"
+    start_urls = [
+        'https://pickleball.global/compete/2020-world-pickleball-championship6/Mixed-19/?id=411&taskdata=2'
+    ]
+    custom_settings = {
+        'ITEM_PIPELINES': {'__main__.JsonWriterPipeline': 1},
+        'FEEDS' : {"pickleballnotpickling.json": {"format": "json"}}
+    }
+    
+    def parse(self, response):
+        for row in response.css('div.table-responsive'):
+            yield {
+                'type': row.css('.ng-binding+ td .ng-scope').extract_first(),
+                'us_team': row.css('span.textteamwrapname ng-binding::text').extract(),
+                'world_team': row.css('span.textteamwrapname ng-binding::text').extract(),
+                'us_points': row.css('input.gameScore ng-pristine ng-untouched ng-valid::text').extract_first(),
+                'world_points': row.css('input.gameScore ng-pristine ng-untouched ng-valid::text').extract_first()
+            }
+            
+            
+process = CrawlerProcess()
+
+process.crawl(PickleballSpider)
+process.start()
+
+pickleball_df = pd.read_json('pickleballnotpickling.jl', lines=True)
+pickleball_df
